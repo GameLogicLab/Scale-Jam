@@ -1,0 +1,51 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+[Mm]emoryCaptures/
+
+# Asset meta backups
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D generated meta files
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Visual Studio / Rider / VSCode
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# Packages (optional - usually keep this tracked so teammates get exact package versions)
+# /[Pp]ackages/
+
+# Unity Cache
+sysinfo.txt
