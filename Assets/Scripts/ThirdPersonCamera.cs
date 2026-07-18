@@ -1,27 +1,41 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// STANDARD SETUP (do this in the Unity Editor hierarchy first):
+// SETUP (Unity hierarchy):
 //
-// Ranger                      <- player root, this script goes here
-//   └── CameraPivot           <- empty GameObject, positioned at chest height (e.g. local pos 0, 1.6, 0)
-//         └── Main Camera     <- positioned BEHIND the pivot (e.g. local pos 0.5, 0, -4)
-//                                 (0.5 = shoulder offset, -4 = distance behind)
+// CameraPivot                 <- STANDALONE object, NOT a child of the player
+//   └── Main Camera           <- child of CameraPivot, LOCAL position handled by this script now
 //
-// This script rotates "Ranger" (yaw, left/right) and "CameraPivot" (pitch, up/down).
-// Because the Camera is a child of CameraPivot, it automatically orbits correctly —
-// no manual position math needed. This is the standard, reliable pattern.
+// This script goes on "CameraPivot". It follows the player's POSITION only,
+// and rotates purely from mouse input — independent of player body rotation.
+// Both height offset AND camera distance scale with the player's current size.
 
 public class ThirdPersonCameraRig : MonoBehaviour
 {
     [Header("References")]
-    public Transform cameraPivot; // Drag the CameraPivot child object here
+    public Transform target;                // Drag Ranger (player) here
+    public ScaleController scaleController; // Drag Ranger here too (reads current scale)
+    public Transform cameraTransform;       // Drag the child "Main Camera" here
+
+    [Header("Height Offset (scales with player size)")]
+    public float baseHeightOffset = 1.6f;
+    public float heightOffsetMultiplier = 1f;
+
+    [Header("Distance (scales with player size)")]
+    public float baseDistance = 4f;
+    public float shoulderOffsetX = 0.5f; // right-shoulder offset
+    public float distanceMultiplier = 1f;
+    public float cameraSmoothSpeed = 15f;
 
     [Header("Look Sensitivity")]
     public float mouseSensitivity = 2f;
     public float minPitch = -20f;
     public float maxPitch = 60f;
 
+    [Header("Position Smoothing")]
+    public float positionSmoothSpeed = 15f;
+
+    private float yaw;
     private float pitch = 15f;
 
     void Start()
@@ -29,16 +43,20 @@ public class ThirdPersonCameraRig : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (cameraPivot != null)
+        if (target != null)
         {
-            cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+            yaw = target.eulerAngles.y;
         }
     }
 
     void LateUpdate()
     {
+        if (target == null) return;
+
         HandleCursorToggle();
         HandleLook();
+        FollowPosition();
+        UpdateCameraDistance();
     }
 
     void HandleCursorToggle()
@@ -59,14 +77,36 @@ public class ThirdPersonCameraRig : MonoBehaviour
 
         Vector2 delta = mouse.delta.ReadValue();
 
-        // Yaw: rotate the PLAYER body left/right.
-        // This automatically makes the camera orbit too (since it's a child),
-        // AND makes the player face the direction they're looking.
-        transform.Rotate(Vector3.up * delta.x * mouseSensitivity * Time.deltaTime * 10f);
-
-        // Pitch: rotate only the pivot up/down (camera looks up/down, player body stays upright).
+        yaw += delta.x * mouseSensitivity * Time.deltaTime * 10f;
         pitch -= delta.y * mouseSensitivity * Time.deltaTime * 10f;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
-        cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
+
+    float GetCurrentScale()
+    {
+        return scaleController != null ? scaleController.GetCurrentScale() : 1f;
+    }
+
+    void FollowPosition()
+    {
+        float currentScale = GetCurrentScale();
+        float heightOffset = baseHeightOffset * Mathf.Lerp(1f, currentScale, heightOffsetMultiplier);
+
+        Vector3 desiredPosition = target.position + new Vector3(0f, heightOffset, 0f);
+        transform.position = Vector3.Lerp(transform.position, desiredPosition, Time.deltaTime * positionSmoothSpeed);
+    }
+
+    void UpdateCameraDistance()
+    {
+        if (cameraTransform == null) return;
+
+        float currentScale = GetCurrentScale();
+        float distance = baseDistance * Mathf.Lerp(1f, currentScale, distanceMultiplier);
+
+        // Local position: shoulder offset on X, pulled back on Z
+        Vector3 targetLocalPos = new Vector3(shoulderOffsetX, 0f, -distance);
+        cameraTransform.localPosition = Vector3.Lerp(cameraTransform.localPosition, targetLocalPos, Time.deltaTime * cameraSmoothSpeed);
     }
 }

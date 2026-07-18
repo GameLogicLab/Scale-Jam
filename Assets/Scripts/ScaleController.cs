@@ -22,8 +22,11 @@ public class ScaleController : MonoBehaviour
     public string speedParam = "Speed";
     public string groundedParam = "IsGrounded";
 
-    [Header("Strafe Turning")]
-    public float turnSpeed = 15f; // how fast player rotates to face A/D/W/S direction
+    [Header("Reference (needed for camera-relative movement)")]
+    public Transform cameraPivot; // Drag the standalone CameraPivot here
+
+    [Header("Turning")]
+    public float turnSpeed = 15f;
 
     private CharacterController controller;
     private float currentScale = 1.0f;
@@ -100,12 +103,31 @@ public class ScaleController : MonoBehaviour
 
         if (inputDir.magnitude > 0.01f)
         {
-            // Build world-space move direction from the player's OWN current facing
-            // (not the camera) — this is separate from mouse-look rotation.
-            Vector3 moveDir = (transform.right * h + transform.forward * v).normalized;
+            Vector3 moveDir;
 
-            // Rotate the player body to face whichever direction is being pressed
-            // (W = face forward, A = face left, D = face right, S = face backward)
+            if (cameraPivot != null)
+            {
+                // FIXED reference frame: use the camera's forward/right (world-based,
+                // not the player's own rotating body) so the move direction never
+                // chases the player's changing rotation — this is what was causing
+                // the "ring-around-the-rosie" spin.
+                Vector3 camForward = cameraPivot.forward;
+                Vector3 camRight = cameraPivot.right;
+                camForward.y = 0f;
+                camRight.y = 0f;
+                camForward.Normalize();
+                camRight.Normalize();
+
+                moveDir = (camForward * v + camRight * h).normalized;
+            }
+            else
+            {
+                // Fallback: world axes if no camera reference assigned
+                moveDir = new Vector3(h, 0, v).normalized;
+            }
+
+            // Rotate the player body to face the move direction (visual turn only —
+            // does NOT affect the move direction itself, so no feedback loop).
             Quaternion targetRotation = Quaternion.LookRotation(moveDir);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
 
