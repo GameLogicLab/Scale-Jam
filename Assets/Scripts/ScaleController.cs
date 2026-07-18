@@ -5,9 +5,9 @@ using UnityEngine.InputSystem;
 public class ScaleController : MonoBehaviour
 {
     [Header("Scale Settings")]
-    public float minScale = 0.4f;      // Tiny size
-    public float maxScale = 3.0f;      // Giant size
-    public float scaleSpeed = 1.0f;    // How fast grow/shrink happens
+    public float minScale = 0.4f;
+    public float maxScale = 3.0f;
+    public float scaleSpeed = 1.0f;
 
     [Header("Movement Settings (scaled with size)")]
     public float baseMoveSpeed = 6f;
@@ -17,56 +17,49 @@ public class ScaleController : MonoBehaviour
     [Header("Push Force (Giant only)")]
     public float basePushForce = 5f;
 
-    [Header("Input Actions")]
-    public InputActionReference moveAction;      // Vector2 (WASD / Left Stick)
-    public InputActionReference jumpAction;      // Button (Space)
-    public InputActionReference growAction;      // Button (Left Shift, hold)
-    public InputActionReference shrinkAction;    // Button (Left Ctrl, hold)
+    [Header("Animation")]
+    public Animator animator;
+    public string speedParam = "Speed";
+    public string groundedParam = "IsGrounded";
+
+    [Header("Strafe Turning")]
+    public float turnSpeed = 15f; // how fast player rotates to face A/D/W/S direction
 
     private CharacterController controller;
     private float currentScale = 1.0f;
     private Vector3 velocity;
     private bool isGrounded;
-    private Vector2 moveInput;
-
-    void OnEnable()
-    {
-        moveAction.action.Enable();
-        jumpAction.action.Enable();
-        growAction.action.Enable();
-        shrinkAction.action.Enable();
-    }
-
-    void OnDisable()
-    {
-        moveAction.action.Disable();
-        jumpAction.action.Disable();
-        growAction.action.Disable();
-        shrinkAction.action.Disable();
-    }
+    private float lastMoveMagnitude = 0f;
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
         currentScale = 1.0f;
         transform.localScale = Vector3.one * currentScale;
+
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
     }
 
     void Update()
     {
-        moveInput = moveAction.action.ReadValue<Vector2>();
-
         HandleScaling();
         HandleMovement();
+        HandleAnimation();
     }
 
     void HandleScaling()
     {
-        if (growAction.action.IsPressed())
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        if (kb.leftShiftKey.isPressed)
         {
             currentScale += scaleSpeed * Time.deltaTime;
         }
-        else if (shrinkAction.action.IsPressed())
+        else if (kb.leftCtrlKey.isPressed)
         {
             currentScale -= scaleSpeed * Time.deltaTime;
         }
@@ -79,6 +72,9 @@ public class ScaleController : MonoBehaviour
 
     void HandleMovement()
     {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
         isGrounded = controller.isGrounded;
         if (isGrounded && velocity.y < 0)
         {
@@ -92,16 +88,44 @@ public class ScaleController : MonoBehaviour
         float moveSpeed = baseMoveSpeed * speedMultiplier;
         float jumpHeight = baseJumpHeight * jumpMultiplier;
 
-        Vector3 move = transform.right * moveInput.x + transform.forward * moveInput.y;
-        controller.Move(move * moveSpeed * Time.deltaTime);
+        float h = 0f;
+        float v = 0f;
+        if (kb.aKey.isPressed) h -= 1f;
+        if (kb.dKey.isPressed) h += 1f;
+        if (kb.sKey.isPressed) v -= 1f;
+        if (kb.wKey.isPressed) v += 1f;
 
-        if (jumpAction.action.WasPressedThisFrame() && isGrounded)
+        Vector3 inputDir = new Vector3(h, 0, v);
+        lastMoveMagnitude = inputDir.magnitude;
+
+        if (inputDir.magnitude > 0.01f)
+        {
+            // Build world-space move direction from the player's OWN current facing
+            // (not the camera) — this is separate from mouse-look rotation.
+            Vector3 moveDir = (transform.right * h + transform.forward * v).normalized;
+
+            // Rotate the player body to face whichever direction is being pressed
+            // (W = face forward, A = face left, D = face right, S = face backward)
+            Quaternion targetRotation = Quaternion.LookRotation(moveDir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * turnSpeed);
+
+            controller.Move(moveDir * moveSpeed * Time.deltaTime);
+        }
+
+        if (kb.spaceKey.wasPressedThisFrame && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
+
+    void HandleAnimation()
+    {
+        if (animator == null) return;
+        animator.SetFloat(speedParam, lastMoveMagnitude);
+        animator.SetBool(groundedParam, isGrounded);
     }
 
     void OnControllerColliderHit(ControllerColliderHit hit)
