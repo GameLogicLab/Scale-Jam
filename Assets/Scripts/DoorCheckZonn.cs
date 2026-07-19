@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class DoorCheckZone : MonoBehaviour
 {
-    // Place this on a Box Collider (Is Trigger = true) right in front of the door.
-    // When the player enters, it checks with KeyManager if all keys are collected.
+    [Header("UI")]
+    public GameObject levelCompletePanel; // Drag your Level Complete UI Panel here (should be inactive by default)
 
     void OnTriggerEnter(Collider other)
     {
@@ -20,11 +20,27 @@ public class DoorCheckZone : MonoBehaviour
 
         if (collected >= needed)
         {
-            Debug.Log("Door Open! All keys collected (" + collected + "/" + needed + ")");
+            Debug.Log("Door Open! Level Complete (" + collected + "/" + needed + ")");
+            ShowLevelCompleteUI();
         }
         else
         {
             Debug.Log("Door Locked. Keys collected: " + collected + "/" + needed);
+        }
+    }
+
+    void ShowLevelCompleteUI()
+    {
+        if (levelCompletePanel != null)
+        {
+            levelCompletePanel.SetActive(true);
+
+            // Optional: pause the game while the panel is up
+            Time.timeScale = 0f;
+
+            // Unlock cursor so player can click UI buttons
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
     }
 }
